@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>2026 World Cup — US Venues</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #131c30;
+    --panel-2: #1a2540;
+    --line: #2a3756;
+    --text: #e7ecf5;
+    --muted: #97a3bd;
+    --accent: #4f8cff;
+    --live: #ff4d5e;
+    --win: #6ee7a0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 20px; background: rgba(11,18,32,0.95);
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(8px);
+    flex-wrap: wrap;
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  button {
+    background: var(--accent); color: white; border: 0;
+    padding: 8px 14px; border-radius: 6px; font-weight: 600;
+    cursor: pointer; font-size: 13px;
+  }
+  button:hover { filter: brightness(1.1); }
+  button:disabled { opacity: 0.6; cursor: wait; }
+  #status { color: var(--muted); font-size: 12px; }
+  .header-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+  #filter-btn, #live-btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); padding: 6px 12px; }
+  #filter-btn:hover, #live-btn:hover { background: var(--panel); }
+  #filter-btn.active, #live-btn.active { background: var(--accent); border-color: var(--accent); }
+  #live-btn.active { background: var(--live); border-color: var(--live); }
+  .filter-panel {
+    display: none;
+    position: absolute; top: 56px; right: 20px; z-index: 20;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px; max-width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .filter-panel.open { display: block; }
+  .filter-panel h3 { margin: 0 0 8px 0; font-size: 12px; text-transform: uppercase; color: var(--muted); }
+  #filter-list { max-height: 50vh; overflow-y: auto; }
+  .country-group { margin: 8px 0 2px 0; font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
+  .country-group:first-child { margin-top: 0; }
+  .filter-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer;
+    font-size: 13px; color: var(--text);
+  }
+  .filter-item input { cursor: pointer; }
+  .filter-item label { cursor: pointer; flex: 1; }
+  .filter-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+  .filter-actions button { flex: 1 1 auto; padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+  .filter-actions button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+  main { padding: 20px; }
+  .rounds { display: flex; gap: 18px; overflow-x: auto; padding-bottom: 12px; }
+  .round {
+    flex: 0 0 280px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .round h2 {
+    margin: 0 0 4px 0; font-size: 13px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); font-weight: 600;
+  }
+  .match {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .match.live { border-color: var(--live); box-shadow: 0 0 0 1px var(--live) inset; }
+  .match-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: var(--muted);
+  }
+  .match-meta .venue { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }
+  .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0.04em; }
+  .badge.live { background: var(--live); color: white; animation: pulse 1.4s ease-in-out infinite; }
+  .badge.final { background: #2a3756; color: var(--text); }
+  .badge.upcoming { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.55 } }
+  .team {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 0; font-size: 14px;
+  }
+  .team .name { font-weight: 500; }
+  .team .name.winner { color: var(--win); font-weight: 700; }
+  .team .score { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 24px; text-align: right; }
+  .empty { color: var(--muted); padding: 20px; text-align: center; font-style: italic; }
+  .error { color: var(--live); padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>2026 World Cup</h1>
+  <span class="sub">World Cup matches · times in ET</span>
+  <div class="header-right">
+    <div style="position: relative;">
+      <button id="filter-btn">🏟️ Stadiums</button>
+      <div id="filter-panel" class="filter-panel">
+        <h3>Filter by Stadium</h3>
+        <div class="filter-actions">
+          <button class="secondary" id="filter-all">All Stadiums</button>
+          <button class="secondary" id="filter-us">🇺🇸 US</button>
+          <button class="secondary" id="filter-mx">🇲🇽 Mexico</button>
+          <button class="secondary" id="filter-ca">🇨🇦 Canada</button>
+          <button class="secondary" id="filter-none">Clear All</button>
+        </div>
+        <div id="filter-list"></div>
+      </div>
+    </div>
+    <button id="live-btn">🔴 Live</button>
+    <button id="region-btn">🇺🇸 US Only</button>
+    <button id="update">Update</button>
+    <span id="status">Not loaded yet — click Update.</span>
+  </div>
+</header>
+<main>
+  <div id="content" class="rounds"></div>
+</main>
+
+<script>
+const API = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard";
+
+const DATE_CHUNKS = [
+  ["20260611", "20260620"],
+  ["20260621", "20260630"],
+  ["20260701", "20260710"],
+  ["20260711", "20260719"],
+];
+
+const ROUND_ORDER = [
+  "Group Stage",
+  "Round of 32",
+  "Round of 16",
+  "Quarterfinal",
+  "Semifinal",
+  "Third Place",
+  "Final",
+];
+
+let allMatches = [];
+let selectedStadiums = new Set(JSON.parse(localStorage.getItem("wcSelectedStadiums") || "[]"));
+let liveOnly = JSON.parse(localStorage.getItem("wcLiveOnly") || "false");
+let usOnlyFilter = JSON.parse(localStorage.getItem("wcUSOnlyFilter") || "true");
+
+function normalizeRound(name) {
+  if (!name) return "Group Stage";
+  const n = name.toLowerCase();
+  if (n.includes("group")) return "Group Stage";
+  if (n.includes("round of 32") || n.includes("r32")) return "Round of 32";
+  if (n.includes("round of 16") || n.includes("r16")) return "Round of 16";
+  if (n.includes("quarter")) return "Quarterfinal";
+  if (n.includes("third") || n.includes("3rd")) return "Third Place";
+  if (n.includes("semi")) return "Semifinal";
+  if (n.includes("final")) return "Final";
+  return "Group Stage";
+}
+
+// Known 2026 host cities, used when ESPN omits the venue country.
+const HOST_CITIES = {
+  US: [
+    "atlanta", "foxborough", "boston", "arlington", "dallas",
+    "houston", "kansas city", "inglewood", "los angeles",
+    "miami gardens", "miami", "east rutherford", "new york",
+    "philadelphia", "santa clara", "san francisco", "seattle",
+  ],
+  Mexico: ["mexico city", "ciudad de méxico", "ciudad de mexico", "guadalajara", "zapopan", "monterrey", "guadalupe"],
+  Canada: ["toronto", "vancouver"],
+};
+
+function venueCountry(venue) {
+  if (!venue) return "Other";
+  const addr = venue.address || {};
+  const country = (addr.country || "").toLowerCase();
+  if (/united states|usa/.test(country)) return "US";
+  if (/mexico|méxico|mex\b/.test(country)) return "Mexico";
+  if (/canada|can\b/.test(country)) return "Canada";
+  const city = (addr.city || "").toLowerCase();
+  for (const [name, cities] of Object.entries(HOST_CITIES)) {
+    if (cities.some(c => city.includes(c))) return name;
+  }
+  return "Other";
+}
+
+function fmtET(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short", month: "short", day: "numeric",
+    hour: "numeric", minute: "2-digit",
+  }) + " ET";
+}
+
+async function fetchAll() {
+  const events = [];
+  for (const [start, end] of DATE_CHUNKS) {
+    const url = `${API}?dates=${start}-${end}&limit=400`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`ESPN ${res.status}`);
+    const json = await res.json();
+    if (json.events) events.push(...json.events);
+  }
+  return events;
+}
+
+function parseEvent(ev) {
+  const comp = ev.competitions && ev.competitions[0];
+  if (!comp) return null;
+
+  const status = ev.status || comp.status || {};
+  const stype = status.type || {};
+  const state = stype.state; // "pre", "in", "post"
+  const competitors = comp.competitors || [];
+  const home = competitors.find(c => c.homeAway === "home") || competitors[0];
+  const away = competitors.find(c => c.homeAway === "away") || competitors[1];
+
+  const round = normalizeRound(
+    (ev.season && ev.season.type && ev.season.type.name) ||
+    (comp.notes && comp.notes[0] && comp.notes[0].headline) ||
+    ev.name
+  );
+
+  return {
+    id: ev.id,
+    date: ev.date,
+    state,
+    period: status.period,
+    clock: status.displayClock,
+    statusDetail: stype.shortDetail || stype.description,
+    venue: comp.venue ? `${comp.venue.fullName || ""}${comp.venue.address && comp.venue.address.city ? ", " + comp.venue.address.city : ""}` : "",
+    country: venueCountry(comp.venue),
+    round,
+    home: home ? {
+      name: (home.team && (home.team.displayName || home.team.name)) || "TBD",
+      score: home.score,
+      winner: home.winner,
+    } : null,
+    away: away ? {
+      name: (away.team && (away.team.displayName || away.team.name)) || "TBD",
+      score: away.score,
+      winner: away.winner,
+    } : null,
+  };
+}
+
+function renderMatch(m) {
+  const live = m.state === "in";
+  const final = m.state === "post";
+  let badge = `<span class="badge upcoming">${fmtET(m.date)}</span>`;
+  if (live) {
+    const periodLabel = m.statusDetail || (m.clock ? `${m.clock}'` : "LIVE");
+    badge = `<span class="badge live">LIVE · ${periodLabel}</span>`;
+  } else if (final) {
+    badge = `<span class="badge final">FINAL</span>`;
+  }
+  const score = (t) => (live || final) && t && t.score != null ? `<span class="score">${t.score}</span>` : "";
+  const teamRow = (t) => {
+    if (!t) return `<div class="team"><span class="name">TBD</span></div>`;
+    const cls = t.winner ? "name winner" : "name";
+    return `<div class="team"><span class="${cls}">${t.name}</span>${score(t)}</div>`;
+  };
+  return `
+    <div class="match ${live ? "live" : ""}">
+      <div class="match-meta">
+        ${badge}
+        <span class="venue" title="${m.venue}">${m.venue}</span>
+      </div>
+      ${teamRow(m.home)}
+      ${teamRow(m.away)}
+    </div>
+  `;
+}
+
+function stadiumsByCountry() {
+  const map = {};
+  for (const m of allMatches) {
+    if (!m.venue) continue;
+    (map[m.country] = map[m.country] || new Set()).add(m.venue);
+  }
+  return map;
+}
+
+function buildFilterUI() {
+  const byCountry = stadiumsByCountry();
+  const container = document.getElementById("filter-list");
+  const FLAGS = { US: "🇺🇸", Mexico: "🇲🇽", Canada: "🇨🇦", Other: "🏳️" };
+  container.innerHTML = ["US", "Mexico", "Canada", "Other"]
+    .filter(c => byCountry[c] && byCountry[c].size)
+    .map(c => `
+      <div class="country-group">${FLAGS[c]} ${c === "US" ? "United States" : c}</div>
+      ${[...byCountry[c]].sort().map(stadium => `
+        <label class="filter-item">
+          <input type="checkbox" value="${stadium}" ${selectedStadiums.has(stadium) ? "checked" : ""}>
+          <span>${stadium}</span>
+        </label>
+      `).join("")}
+    `).join("");
+
+  container.querySelectorAll("input").forEach(el => {
+    el.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        selectedStadiums.add(e.target.value);
+      } else {
+        selectedStadiums.delete(e.target.value);
+      }
+      localStorage.setItem("wcSelectedStadiums", JSON.stringify([...selectedStadiums]));
+      rerenderMatches();
+    });
+  });
+}
+
+let lastUpdated = "";
+
+function rerenderMatches() {
+  let toRender = allMatches;
+  if (usOnlyFilter) {
+    toRender = toRender.filter(m => m.country === "US");
+  }
+  if (selectedStadiums.size > 0) {
+    toRender = toRender.filter(m => selectedStadiums.has(m.venue));
+  }
+  if (liveOnly) {
+    toRender = toRender.filter(m => m.state === "in");
+  }
+  render(toRender);
+
+  const parts = [];
+  if (lastUpdated) parts.push(`Last updated ${lastUpdated} ET`);
+  const scope = usOnlyFilter ? "US" : "all countries";
+  parts.push(`showing ${toRender.length} of ${allMatches.length} matches (${scope})`);
+  document.getElementById("status").textContent = parts.join(" · ");
+}
+
+function render(matches) {
+  const content = document.getElementById("content");
+  if (!matches.length) {
+    content.innerHTML = `<div class="empty">No matches in selected stadiums.</div>`;
+    return;
+  }
+  const byRound = {};
+  for (const m of matches) {
+    (byRound[m.round] = byRound[m.round] || []).push(m);
+  }
+  for (const r of Object.keys(byRound)) {
+    byRound[r].sort((a, b) => new Date(a.date) - new Date(b.date));
+  }
+  const cols = ROUND_ORDER
+    .filter(r => byRound[r] && byRound[r].length)
+    .map(r => `
+      <section class="round">
+        <h2>${r} <span style="color:var(--muted);font-weight:400">· ${byRound[r].length}</span></h2>
+        ${byRound[r].map(renderMatch).join("")}
+      </section>
+    `).join("");
+  content.innerHTML = cols;
+}
+
+async function update() {
+  const btn = document.getElementById("update");
+  const status = document.getElementById("status");
+  btn.disabled = true;
+  status.textContent = "Updating…";
+  try {
+    const events = await fetchAll();
+    allMatches = events.map(parseEvent).filter(Boolean);
+    lastUpdated = new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", second: "2-digit" });
+    buildFilterUI();
+    rerenderMatches();
+  } catch (e) {
+    document.getElementById("content").innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+    status.textContent = "Update failed";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("update").addEventListener("click", update);
+
+document.getElementById("filter-btn").addEventListener("click", () => {
+  const panel = document.getElementById("filter-panel");
+  const btn = document.getElementById("filter-btn");
+  panel.classList.toggle("open");
+  btn.classList.toggle("active");
+});
+
+function setRegion(usOnly) {
+  usOnlyFilter = usOnly;
+  localStorage.setItem("wcUSOnlyFilter", JSON.stringify(usOnlyFilter));
+  const btn = document.getElementById("region-btn");
+  btn.textContent = usOnlyFilter ? "🇺🇸 US Only" : "🌍 All Games";
+  btn.classList.toggle("active", !usOnlyFilter);
+}
+
+function selectStadiums(stadiums, { allCountries } = {}) {
+  selectedStadiums = new Set(stadiums);
+  localStorage.setItem("wcSelectedStadiums", JSON.stringify([...selectedStadiums]));
+  // Selecting non-US stadiums while in US Only mode would show nothing —
+  // widen to All Games so the selection is visible.
+  if (allCountries && usOnlyFilter) setRegion(false);
+  buildFilterUI();
+  rerenderMatches();
+}
+
+document.getElementById("filter-all").addEventListener("click", () => {
+  selectStadiums([], { allCountries: true });
+});
+
+document.getElementById("filter-us").addEventListener("click", () => {
+  selectStadiums([...(stadiumsByCountry().US || [])]);
+});
+
+document.getElementById("filter-mx").addEventListener("click", () => {
+  selectStadiums([...(stadiumsByCountry().Mexico || [])], { allCountries: true });
+});
+
+document.getElementById("filter-ca").addEventListener("click", () => {
+  selectStadiums([...(stadiumsByCountry().Canada || [])], { allCountries: true });
+});
+
+document.getElementById("filter-none").addEventListener("click", () => {
+  selectStadiums([]);
+});
+
+document.getElementById("live-btn").addEventListener("click", () => {
+  liveOnly = !liveOnly;
+  localStorage.setItem("wcLiveOnly", JSON.stringify(liveOnly));
+  const btn = document.getElementById("live-btn");
+  btn.classList.toggle("active", liveOnly);
+  rerenderMatches();
+});
+
+document.getElementById("region-btn").addEventListener("click", () => {
+  setRegion(!usOnlyFilter);
+  buildFilterUI();
+  rerenderMatches();
+});
+
+document.addEventListener("click", (e) => {
+  const panel = document.getElementById("filter-panel");
+  const btn = document.getElementById("filter-btn");
+  if (!panel.contains(e.target) && !btn.contains(e.target)) {
+    panel.classList.remove("open");
+    btn.classList.remove("active");
+  }
+});
+
+const liveBtn = document.getElementById("live-btn");
+if (liveOnly) liveBtn.classList.add("active");
+
+const regionBtn = document.getElementById("region-btn");
+if (!usOnlyFilter) {
+  regionBtn.textContent = "🌍 All Games";
+  regionBtn.classList.add("active");
+}
+
+update();
+</script>
+</body>
+</html>
